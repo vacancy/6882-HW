@@ -10,6 +10,27 @@
 from .base import Approach
 
 
+class LearningApproach(Approach):
+    def __init__(self, learner):
+        self._learner = learner
+        self._policy = None
+        self._actions = None
+
+    def set_actions(self, actions):
+        self._actions = actions
+        self._learner.set_actions(actions)
+
+    def reset(self, obs):
+        return dict()
+
+    def step(self, obs):
+        assert self._policy is not None, 'Step was called without policy learning.'
+        return self._policy.step(obs)
+
+    def train(self, env):
+        self._policy = self._learner.train(env)
+
+
 class MyLearningApproach1(Approach):
     """TODO: implement me!
     """

@@ -7,7 +7,52 @@
 #
 # Distributed under terms of the MIT license.
 
-from .base import Featurizer
+
+class Featurizer:
+    """Generic class for featurizers
+    """
+    @abc.abstractmethod
+    def initialize(self, all_data):
+        """Initialize the featurizer from a training dataset
+
+        Parameters
+        ----------
+        all_data : [ Any ]
+            A list of data.
+        """
+        raise NotImplementedError("Override me!")
+
+    @abc.abstractmethod
+    def apply(self, x):
+        """Convert a raw input to a featurized input.
+
+        Parameters
+        ----------
+        x : Any
+            A raw input
+
+        Returns
+        -------
+        xhat : Any
+            A featurized input
+        """
+        raise NotImplementedError("Override me!")
+
+    @abc.abstractmethod
+    def invert(self, xhat):
+        """Convert a featurized input to a raw input.
+
+        Parameters
+        ----------
+        x : Any
+            A featurized input
+
+        Returns
+        -------
+        x : Any
+            A raw input
+        """
+        raise NotImplementedError("Override me!")
 
 
 class TabularFeaturizer(Featurizer):

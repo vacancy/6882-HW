@@ -19,7 +19,78 @@ from pddlgym.structs import Predicate, State, Type, LiteralConjunction
 import time
 from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
 from sklearn.neural_network import MLPRegressor
-from .base import Approach, Heuristic, Planner
+from .base import Approach
+
+
+class Planner:
+    """Generic class for planning
+    """
+    @abc.abstractmethod
+    def __call__(self, state):
+        """Make a plan given the state.
+
+        Parameters
+        ----------
+        state : pddlgym.State
+            Note that the state contains the goal (state.goal).
+
+        Returns
+        -------
+        actions : [ Any ]
+            The plan
+        info : dict
+            Any logging or debugging info can go here.
+        """
+        raise NotImplementedError("Override me!")
+
+    @abc.abstractmethod
+    def set_actions(self, actions):
+        """Tell the planner what actions are available in the domain
+
+        Parameters
+        ----------
+        actions : [ Any ]
+        """
+        raise NotImplementedError("Override me!")
+
+
+class Heuristic:
+    """Generic class for heuristics
+    """
+    @abc.abstractmethod
+    def __call__(self, node):
+        """Return a heuristic value (estimated cost-to-go) given a search node.
+
+        Parameters
+        ----------
+        node : AStar.Node
+
+        Returns
+        -------
+        heuristic : float
+        """
+        raise NotImplementedError("Override me!")
+
+    @abc.abstractmethod
+    def set_actions(self, actions):
+        """Tell the planner what actions are available in the domain
+
+        Parameters
+        ----------
+        actions : [ Any ]
+        """
+        raise NotImplementedError("Override me!")
+
+    @abc.abstractmethod
+    def train(self, env):
+        """Some heuristics are learnable. Others will do nothing for training.
+
+        Parameters
+        ----------
+        env : pddlgym.PDDLEnv
+            A training environment that encapsulates training problems.
+        """
+        raise NotImplementedError("Override me!")
 
 
 class SearchApproach(Approach):
@@ -143,3 +214,4 @@ class BestFirstSearch(AStar):
     def _get_priority(self, node):
         h = self._heuristic(node)
         return h
+
