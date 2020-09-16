@@ -1,0 +1,38 @@
+### LEVEL 1 ###
+
+Approach                Train Time    Duration    Num Steps    Num Nodes    Successes
+--------------------  ------------  ----------  -----------  -----------  -----------
+astar_uniform          9.53674e-07   0.200181          11.6        148            1
+random                 9.53674e-07   0.0678396        250            0            0
+supervised_heuristic   5.79821       0.073917          11.6         30.5          1
+supervised_policy      4.11731       0.017278          35.5          0            0.9
+
+
+### LEVEL 2 ###
+
+Approach                Train Time    Duration    Num Steps    Num Nodes    Successes
+--------------------  ------------  ----------  -----------  -----------  -----------
+astar_uniform          9.53674e-07   0.336472          12.9        227.3          1
+random                 9.53674e-07   0.0735995        250            0            0
+supervised_heuristic  17.9682        0.07723           12.9         37.3          1
+supervised_policy     15.7672        0.0625158        131.5          0            0.5
+
+
+### LEVEL 3 ###
+
+Approach                Train Time    Duration    Num Steps    Num Nodes    Successes
+--------------------  ------------  ----------  -----------  -----------  -----------
+astar_uniform          1.19209e-06   0.194932          10.9        142.2          1
+random                 9.53674e-07   0.0673649        250            0            0
+supervised_heuristic  16.4596        0.133475          10.9         42.9          1
+supervised_policy     13.0024        0.124921         202.2          0            0.2
+
+
+### LEVEL 4 ###
+
+Approach                Train Time    Duration    Num Steps    Num Nodes    Successes
+--------------------  ------------  ----------  -----------  -----------  -----------
+astar_uniform          1.19209e-06   2.27296           11.3       1152.7          1
+random                 7.15256e-07   0.0675739        234.2          0            0.1
+supervised_heuristic  75.748         1.72686           11.9        635.8          1
+supervised_policy     75.679         0.145609         250            0            0

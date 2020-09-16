@@ -8,6 +8,8 @@
 # Distributed under terms of the MIT license.
 
 import abc
+import time
+from tqdm import tqdm
 
 
 class Approach:
@@ -149,53 +151,6 @@ class Heuristic:
         raise NotImplementedError("Override me!")
 
 
-class Featurizer:
-    """Generic class for featurizers
-    """
-    @abc.abstractmethod
-    def initialize(self, all_data):
-        """Initialize the featurizer from a training dataset
-
-        Parameters
-        ----------
-        all_data : [ Any ]
-            A list of data.
-        """
-        raise NotImplementedError("Override me!")
-
-    @abc.abstractmethod
-    def apply(self, x):
-        """Convert a raw input to a featurized input.
-
-        Parameters
-        ----------
-        x : Any
-            A raw input
-
-        Returns
-        -------
-        xhat : Any
-            A featurized input
-        """
-        raise NotImplementedError("Override me!")
-
-    @abc.abstractmethod
-    def invert(self, xhat):
-        """Convert a featurized input to a raw input.
-
-        Parameters
-        ----------
-        x : Any
-            A featurized input
-
-        Returns
-        -------
-        x : Any
-            A raw input
-        """
-        raise NotImplementedError("Override me!")
-
-
 def get_approach(name, env, planning_timeout=10):
     """Put new approaches here!
     """
@@ -208,5 +163,90 @@ def get_approach(name, env, planning_timeout=10):
         planner = AStar(env.get_successor_state, env.check_goal, timeout=planning_timeout)
         return SearchApproach(planner=planner)
 
+    if name == 'supervised_policy':
+        from .learning import SupervisedPolicyLearning
+        return SupervisedPolicyLearning()
+
+    if name == 'supervised_heuristic':
+        from .learning import SupervisedHeuristicLearning, LearnedHeuristic
+        from .plan import SearchApproach, AStar
+        planner = AStar(env.get_successor_state, env.check_goal, timeout=planning_timeout)
+        return SupervisedHeuristicLearning(planner, LearnedHeuristic())
+
+    if name == 'qlearning_heuristic':
+        from .learning import SupervisedHeuristicLearning, QLearningHeuristic
+        from .plan import SearchApproach, AStar
+        planner = AStar(env.get_successor_state, env.check_goal, timeout=planning_timeout)
+        return SupervisedHeuristicLearning(planner, QLearningHeuristic(
+            H=1000,       # horizon,
+            T=int(1e5),   # total env steps
+            gamma=0.9,    # gamma
+            epsilon=0.1,  # in eps-greedy
+        ))
+
     raise Exception(f"Unrecognized approach: {name}")
 
+
+def run_single_test(test_env, problem_idx, model, max_horizon=250, max_duration=10, DEBUG=False):
+    if DEBUG: print(f"Running test problem {problem_idx} in environment {test_env.spec.id}")
+    test_env.fix_problem_index(problem_idx)
+    start_time = time.time()
+    obs, info = test_env.reset()
+    model_info = model.reset(obs)
+    node_expansions = model_info.get('node_expansions', 0)
+    num_steps = 0
+    success = False
+    states, actions = [obs], []
+    last_action = None
+    for t in range(max_horizon):
+        if time.time() - start_time > max_duration:
+            break
+        if DEBUG: print(".", end='', flush=True)
+        act = model.step(obs)
+        last_action = act
+        obs, reward, done, info = test_env.step(act)
+
+        num_steps += 1
+        if done:
+            assert reward == 1
+            success = True
+            break
+        else:
+            ## collect states and actions data
+            actions.append(act)
+            states.append(obs)
+
+    actions.append(last_action)
+
+    duration = time.time() - start_time
+    if DEBUG: print(f" final duration: {duration} with num steps {num_steps} and success={success}.")
+    return duration, num_steps, node_expansions, success, states, actions
+
+def run_single_experiment(model, train_env, test_env, seed=0):
+    # Initialize
+    test_env.reset()
+    actions = test_env.get_possible_actions()
+    model.set_actions(actions)
+    model.seed(seed)
+
+    # Training
+    training_start_time = time.time()
+    model.train(train_env)
+    train_duration = time.time() - training_start_time
+    train_durations = [train_duration] * len(test_env.problems) # for result reporting convenience
+
+    # Test time
+    test_durations = [] # seconds, one per problem
+    test_num_steps = [] # integers
+    test_node_expansions = [] # integers
+    test_successes = [] # boolean, True if successful
+
+    for problem_idx in tqdm(range(len(test_env.problems))):
+        duration, num_steps, node_expansions, success, _, _ = \
+            run_single_test(test_env, problem_idx, model)
+        test_durations.append(duration)
+        test_num_steps.append(num_steps)
+        test_node_expansions.append(node_expansions)
+        test_successes.append(success)
+    print()
+    return train_durations, test_durations, test_num_steps, test_node_expansions, test_successes
