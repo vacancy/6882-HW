@@ -37,7 +37,7 @@ class SearchApproach(Approach):
         self._planner.set_actions(actions)
 
     def reset(self, obs):
-        self._plan, info = self._planner(obs, heuristic=self._heuristic)
+        self._plan, info = self._planner(obs, heuristic=self._heuristic, verbose=False)
         return info
 
     def step(self, obs):

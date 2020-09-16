@@ -7,8 +7,10 @@
 #
 # Distributed under terms of the MIT license.
 
-from .base import Featurizer
+import numpy as np
+from pddlgym.structs import Predicate, State, Type, LiteralConjunction
 
+from .base import Featurizer
 
 class TabularFeaturizer(Featurizer):
     """A tabular featurizer assigns a unique ID to each input.
@@ -21,14 +23,14 @@ class TabularFeaturizer(Featurizer):
         self._unknown_idx = None
         self._initialized = False
 
-    def initialize(self, all_data):
+    def initialize(self, all_data, DEBUG = False):
         for i, x in enumerate(sorted(set(all_data))):
             self._x_to_idx[x] = i
             self._idx_to_x[i] = x
         self._num_features = max(self._idx_to_x) + 1
         self._unknown_idx = self._num_features
         self._initialized = True
-        print(f"Initialized {self._num_features} tabular features")
+        if DEBUG: print(f"Initialized {self._num_features} tabular features")
 
     def apply(self, x):
         assert self._initialized, "Must call `initialize(all_data)` before `apply(datum)`."
@@ -70,14 +72,14 @@ class PropositionalFeaturizer(Featurizer):
             return X.literals | {self._wrap_goal_literal(x) for x in X.goal.literals}
         return X
 
-    def initialize(self, all_data):
+    def initialize(self, all_data, DEBUG = False):
         all_props = { x for X in all_data for x in self._preproc_pddl_state(X) }
         for i, x in enumerate(sorted(all_props)):
             self._x_to_idx[x] = i
             self._idx_to_x[i] = x
         self._num_features = max(self._idx_to_x)+1
         self._initialized = True
-        print(f"Initialized {self._num_features} propositional features")
+        if DEBUG: print(f"Initialized {self._num_features} propositional features")
 
     def apply(self, X):
         assert self._initialized, "Must call `initialize(all_data)` before `apply(datum)`."
@@ -171,3 +173,19 @@ class SARMinimalStateFeaturizer(Featurizer):
         state = (state / self.max_location) - 0.5
         return state
 
+def get_featurizer(name):
+    """Put new featurizers here!
+    """
+    if name == "tabular":
+        return TabularFeaturizer()
+
+    if name == "propositional":
+        return PropositionalFeaturizer()
+
+    if name == 'SARState':
+        return SARStateFeaturizer()
+
+    if name == 'SARMinimalState':
+        return SARMinimalStateFeaturizer()
+
+    raise Exception(f"Unrecognized featurizer: {name}")
