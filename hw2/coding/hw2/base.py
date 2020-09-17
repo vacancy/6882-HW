@@ -150,18 +150,32 @@ class Heuristic:
         """
         raise NotImplementedError("Override me!")
 
+def get_states(env):
+    print('getting states')
 
-def get_approach(name, env, planning_timeout=10):
+def get_approach(name, env, planning_timeout=10, num_search_iters=1000, gamma=0.999):
     """Put new approaches here!
     """
     if name == "random":
-        from .random import RandomActions
+        from .plan import RandomActions
         return RandomActions()
 
     if name == "astar_uniform":
         from .plan import SearchApproach, AStar
         planner = AStar(env.get_successor_state, env.check_goal, timeout=planning_timeout)
         return SearchApproach(planner=planner)
+
+    if name == "uct":
+        from .plan import SearchApproach, UCT
+        planner = UCT(env.get_successor_state, env.check_goal, reward_fn=env.extrinsic_reward,
+                      num_search_iters=num_search_iters, timeout=planning_timeout/10,
+                      replanning_interval=1, max_num_steps=100, gamma=gamma)
+        return SearchApproach(planner=planner)
+
+    if name == 'value_iteration':
+        from .plan import DPApproach, VI
+        planner = VI()
+        return DPApproach(solver=planner)
 
     if name == 'supervised_policy':
         from .learning import SupervisedPolicyLearning
@@ -222,7 +236,7 @@ def run_single_test(test_env, problem_idx, model, max_horizon=250, max_duration=
     if DEBUG: print(f" final duration: {duration} with num steps {num_steps} and success={success}.")
     return duration, num_steps, node_expansions, success, states, actions
 
-def run_single_experiment(model, train_env, test_env, seed=0):
+def run_single_experiment(model, train_env, test_env, seed=0, num_problems=100):
     # Initialize
     test_env.reset()
     actions = test_env.get_possible_actions()
@@ -241,7 +255,8 @@ def run_single_experiment(model, train_env, test_env, seed=0):
     test_node_expansions = [] # integers
     test_successes = [] # boolean, True if successful
 
-    for problem_idx in tqdm(range(len(test_env.problems))):
+    num_problems = min(len(test_env.problems), num_problems)
+    for problem_idx in tqdm(range(num_problems)):
         duration, num_steps, node_expansions, success, _, _ = \
             run_single_test(test_env, problem_idx, model)
         test_durations.append(duration)

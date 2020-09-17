@@ -20,11 +20,13 @@ from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
 from hw2.base import get_approach, run_single_test, run_single_experiment
 
 approaches = [
-    "random",
+    # "random",
     "astar_uniform",
-    "supervised_policy",
-    "supervised_heuristic",
-    "qlearning_heuristic",
+    "uct",
+    # "value_iteration",
+    # "supervised_policy",
+    # "supervised_heuristic",
+    # "qlearning_heuristic",
 ]
 
 
@@ -39,7 +41,7 @@ def print_level(level, all_results, columns, STD=False):
         print(tabulate(std_table, headers=columns))
 
 def main():
-    levels = list(range(1, 7))
+    levels = list(range(1,2))
     columns = ["Approach", "Train Time", "Duration", "Num Steps", "Num Nodes", "Successes"]
 
     all_results = {}
@@ -53,7 +55,7 @@ def main():
             print('    Experimenting with Approach:', approach)
             all_results[level][approach] = []
             model = get_approach(approach, test_env)
-            results = run_single_experiment(model, train_env, test_env)
+            results = run_single_experiment(model, train_env, test_env, num_problems=1)
             for (train_dur, dur, num_steps, num_nodes, succ) in zip(*results):
                 all_results[level][approach].append((train_dur, dur, num_steps, num_nodes, succ))
         print_level(level, all_results, columns)

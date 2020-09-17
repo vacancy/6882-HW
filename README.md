@@ -109,3 +109,6 @@ qlearning_heuristic         35.707    10.0203             0       1889.5        
 
 - we can make some cardboard people 
 - this is an update of Leslie's picture, more scifi
+- so these Zoom jokes just don't work, isn't it?
+- you can always blame that on TOM
+- (can I ask a question?) you have to pay extra though
