@@ -324,7 +324,7 @@ class UCT(Planner):
             q = reward
         else:
             reward = self._reward_fn(s, a)
-            reward = -1
+            reward = 0
             q = reward + self._gamma * self._search(next_state, depth+1, horizon=horizon)
         # Update values and counts
         num_visits = self._N[s][a][depth] # before now

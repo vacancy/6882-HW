@@ -98,3 +98,56 @@ supervised_heuristic       447.512    10.0243             0       3676.7        
 qlearning_heuristic         35.707    10.0203             0       1889.5            0
 ```
 
+
+# Course Dev Questions
+
+Jiayuan Mao and Zhutian Yang collaborated on the course development question.
+
+In this section, you are going to play with and compare two other planning algorithms:
+the Upper Confidence Tree (UCT) algorithm and the Value Iteration (VI) algorithm.
+
+1. Implement a basic version of UCT and VI, describe the hyperparameters for both algorithms.
+
+*Answer*: Please refer to the following repo as the reference implementation.
+In our implementation, the UCT algorithm has the following hyperparameters:
+
+- `max_steps`: the max depth of the search tree.
+- `num_search_iters`: number of UCT iterations.
+- `replanning_interval`: after a certain number of environment steps, we are going to replan.
+- `gamma`: discount factor.
+- `timeout`.
+
+The Value Iteration algorithm has the following hyperparameters.
+- `gamma`: discount factor.
+- `epsilon`: epsilon for early stopping the value iteration.
+
+2. Test both algorithms on the level 1 of the save-and-rescue environment, report the time spent on the search and the success rate for both algorithms.
+_Hint: you may want to use a longer timeout for both algorithms as they run slow._
+
+*Answer*:
+
+```
+# Means #
+Approach         Train Time    Duration    Num Steps
+-------------  ------------  ----------  -----------
+astar_uniform   1.19209e-06    0.129424            9
+uct             1.43051e-06   32.9664             25
+vi              ???????????   ?????????           ??
+```
+
+3. Both UCT and A-Star with uniform heuristic do not use any informative heuristic functions. Compare their performances and describe your findings.
+
+*Answer*:
+A-Star runs a magnitude faster than UCT. This is possibly because:
+
+- A-Star assumes a single goal state, but UCT was designed for achieving max accumulated rewards. Thus, UCT in general solves a more difficult problem.
+In the fixed horizon case, the UCT algorithm keeps track of the number of remaining steps, making the search graph H times bigger, where H is the planning horizon.
+- In our implementation, at each iteration, UCT starts from the starting state.
+
+4. Show the complexity of the Value Iteration algorithm. Why is it slow? What's the assumption difference between Value Iteration and A* (or other search algorithms?)
+
+*Answer*: The Value Iteration takes O(kNA) time. k is the number of iterations. N is the number of states. A is the number of actions.
+The key difference between VI and A* is that VI is capable of handling non-deterministic environments. That is, the transition function can be non-deterministic.
+In such case, the A* algorithm can not produce the expected value at each state.
+Moreover, value iteration is designed for the general reward-maximization problem, whereas A* terminates after finding a path to a single goal state.
+
