@@ -28,6 +28,8 @@ approaches = [
     # "supervised_heuristic",
     # "qlearning_heuristic",
 ]
+levels = list(range(1, 2 + 1))
+columns = ["Approach", "Train Time", "Duration", "Num Steps", "Num Nodes", "Successes"]
 
 
 def print_level(level, all_results, columns, STD=False):
@@ -40,10 +42,8 @@ def print_level(level, all_results, columns, STD=False):
         print("\n# Standard Deviations #")
         print(tabulate(std_table, headers=columns))
 
-def main():
-    levels = list(range(1,2))
-    columns = ["Approach", "Train Time", "Duration", "Num Steps", "Num Nodes", "Successes"]
 
+def main():
     all_results = {}
     for level in levels:
         print('\n=======================================')
@@ -62,6 +62,7 @@ def main():
 
     for level in sorted(all_results):
         print_level(level, all_results, columns, STD=True)
+
 
 if __name__ == '__main__':
     main()
