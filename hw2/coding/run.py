@@ -38,7 +38,6 @@ def print_level(level, all_results, columns, STD=False):
         print("\n# Standard Deviations #")
         print(tabulate(std_table, headers=columns))
 
-
 def main():
     levels = list(range(1, 7))
     columns = ["Approach", "Train Time", "Duration", "Num Steps", "Num Nodes", "Successes"]
@@ -46,12 +45,12 @@ def main():
     all_results = {}
     for level in levels:
         print('\n=======================================')
-        print('Testing on Level ', level)
+        print('Experimenting on Level:', level)
         all_results[level] = {}
         train_env = pddlgym.make(f"PDDLSearchAndRescueLevel{level}-v0")
         test_env = pddlgym.make(f"PDDLSearchAndRescueLevel{level}Test-v0")
         for approach in approaches:
-            print('    Testing on Approach ', approach)
+            print('    Experimenting with Approach:', approach)
             all_results[level][approach] = []
             model = get_approach(approach, test_env)
             results = run_single_experiment(model, train_env, test_env)
@@ -60,8 +59,7 @@ def main():
         print_level(level, all_results, columns)
 
     for level in sorted(all_results):
-        print_level(level, all_results, columns)
-
+        print_level(level, all_results, columns, STD=True)
 
 if __name__ == '__main__':
     main()

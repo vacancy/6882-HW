@@ -10,6 +10,8 @@
 from collections import defaultdict
 
 import tqdm
+import random
+import time
 import numpy as np
 from numpy.random import RandomState
 from sklearn.tree import DecisionTreeClassifier
@@ -56,8 +58,11 @@ class SupervisedPolicyLearning(Approach):
         self._action_featurizer.initialize(A)
         X = [self._state_featurizer.apply(s) for s in S]
         Y = [self._action_featurizer.apply(a) for a in A]
+
+        start = time.time()
         self._learning_model.fit(X,Y)
-        # print(f'Fit DecisionTreeClassifier on {num_data} (S, A) pairs\n')
+        duration = round(time.time() - start, 3)
+        print(f'Fit DecisionTreeClassifier on {num_data} (S, A) pairs in {duration} seconds\n')
 
     def reset(self, state):
         return {'node_expansions': 0}
@@ -66,6 +71,7 @@ class SupervisedPolicyLearning(Approach):
         """ test classifier """
         X = self._state_featurizer.apply(obs).reshape(1, -1)
         y = self._action_featurizer.invert(self._learning_model.predict(X)[0])
+        if y == None: y = random.choice(self._actions)
         return y
 
     def seed(self, seed):
