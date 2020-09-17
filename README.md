@@ -2,8 +2,8 @@
 
 ## Index
 
-- hw1: [https://github.com/vacancy/6882-HW/tree/master/hw1](code)
-- hw2: [https://github.com/vacancy/6882-HW/tree/master/hw2/run.py](code) and [https://github.com/vacancy/6882-HW/tree/master/hw2](solution)
+- hw1: [code](https://github.com/vacancy/6882-HW/tree/master/hw1/jiayuan.ipynb)
+- hw2: [code](https://github.com/vacancy/6882-HW/tree/master/hw2/run.py) and [solution](https://github.com/vacancy/6882-HW/tree/master/hw2)
 
 ## Main text: Tomas' Jokes
 
