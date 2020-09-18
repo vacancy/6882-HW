@@ -20,15 +20,15 @@ from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
 from hw2.base import get_approach, run_single_test, run_single_experiment
 
 approaches = [
-    # "random",
-    # "astar_uniform",
+    "random",
+    "astar_uniform",
     # "uct",
-    "value_iteration",
-    # "supervised_policy",
-    # "supervised_heuristic",
-    # "qlearning_heuristic",
+    # "value_iteration",
+    "supervised_policy",
+    "supervised_heuristic",
+    "qlearning_heuristic",
 ]
-levels = list(range(1, 2))
+levels = list(range(1, 7))
 columns = ["Approach", "Train Time", "Duration", "Num Steps", "Num Nodes", "Successes"]
 
 
