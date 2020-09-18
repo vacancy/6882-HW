@@ -132,8 +132,9 @@ Approach         Train Time    Duration    Num Steps
 -------------  ------------  ----------  -----------
 astar_uniform   1.19209e-06    0.129424            9
 uct             1.43051e-06   32.9664             25
-vi              ???????????   ?????????           ??
+value_iteration 2.14577e-06   50.5765              9
 ```
+Actually it took 10.88 seconds for Value iteration to converge, the extra 39.362 seconds was spent on translating the state space.
 
 3. Both UCT and A-Star with uniform heuristic do not use any informative heuristic functions. Compare their performances and describe your findings.
 

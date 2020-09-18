@@ -15,10 +15,11 @@ import numpy as np
 import copy
 import heapq as hq
 import time
+import matplotlib.pyplot as plt
 from pddlgym.custom.searchandrescue import SearchAndRescueEnv
 
 from .base import Approach
-from .learning import TabularQ
+from .utils import display_image, draw_trace
 
 
 class Planner:
@@ -242,13 +243,12 @@ class UCT(Planner):
     """Implementation of UCT based on Leslie's lecture notes
 
     """
-    def __init__(self, successor_fn, check_goal_fn, reward_fn,
+    def __init__(self, successor_fn, check_goal_fn,
                  num_search_iters=100, timeout=100,
                  replanning_interval=5, max_num_steps=250, gamma=0.9, seed=0):
 
         self._get_successor_state = successor_fn
         self._check_goal = check_goal_fn
-        self._reward_fn = reward_fn
 
         self._num_search_iters = num_search_iters
         self._max_num_steps = max_num_steps
@@ -321,11 +321,11 @@ class UCT(Planner):
         # Get value estimate
         if self._check_goal(next_state):
             # Some environments terminate problems before the horizon
-            reward = self._reward_fn(s, a)
+            # reward = self._reward_fn(s, a)
             reward = 100
             q = reward
         else:
-            reward = self._reward_fn(s, a)
+            # reward = self._reward_fn(s, a)
             reward = 0
             q = reward + self._gamma * self._search(next_state, depth+1, horizon=horizon)
         # Update values and counts
@@ -392,19 +392,19 @@ class DPApproach(Approach):
         pass
 
 class VI(DPApproach):
-    def __init__(self, env, successor_fn, check_goal_fn, reward_fn,
-                 max_num_steps=150, gamma=0.9, epsilon=0.1, timeout=100, seed=0):
+    def __init__(self, env, successor_fn, check_goal_fn,
+                 max_num_steps=150, gamma=0.9, epsilon=0, timeout=100, seed=0):
 
+        self._env_ori = env
         self._env = SearchAndRescueEnv(env)
         self._states = None
         self._actions = None
         self.T = successor_fn
-        self.R = reward_fn
         self._check_goal = check_goal_fn
 
         self._max_num_steps = max_num_steps
         self._gamma = gamma
-        self._epsilon = epsilon  ## epsilon greey method
+        self._epsilon = epsilon  ## epsilon greedy method
         self._timeout = timeout
         self._pi = None
 
@@ -440,13 +440,15 @@ class VI(DPApproach):
             else: if_carry = None
             new_state = copy.deepcopy(self._fixed_state_items)
             new_state.append(('robot0', self._available_locations[rob_loc]))
-            new_state.append((goal_person, self._available_locations[person_loc]))
             new_state.append(('carrying', if_carry))
+            if if_carry != goal_person:
+                new_state.append((goal_person, self._available_locations[person_loc]))
             return self._env._state_to_internal(tuple(new_state))
 
         raise NotImplementedError("Didn't implement for this level!")
 
     def _set_states(self, state):
+
         ## the available states include robot-at x person-at x handsfree
         new_state = self._env._internal_to_state(state)
         self._available_locations = [(r,c) for r in range(6) for c in range(6)]
@@ -470,23 +472,46 @@ class VI(DPApproach):
                                   for person_loc in range(len(self._available_locations))
                                   for if_carry in range(2)
                                   ])
+
             return self._states
 
         raise NotImplementedError("Didn't implement for this level!")
 
-    def __call__(self, state, verbose=False):
+    def __call__(self, state, verbose=False): # self._env.render_from_state(self._env._internal_to_state(state))
+        display_image(self._env_ori.render_from_state(state), 'initial')
+
         self._set_states(state)
         self._pi = self.value_iteration()
+        actions = []
         plan = [state]
         for t in tqdm(range(self._max_num_steps)):
-            action = self._get_action(state)
+            action = self._get_action(state, t)
+            actions.append(action)
             state = self.T(state, action)
             plan.append(state)
+            # if self._obs_to_state(state) in [1798, 1799]:
+                # print(self._env._internal_to_state(state))
+                # print(self._check_goal(state), state)
+                # s = self._state_to_obs(self._obs_to_state(state))
+                # print(self._check_goal(s), s)
+                # print()
             if self._check_goal(state):
-                print(f'!!! found goal in {t} steps!')
+                print(f'!!! found goal in {t+1} steps!')
                 break
 
-        return plan, {'node_expansions': 0}
+        draw_trace(self._translate_plan(plan))
+        plt.savefig('test.png')
+        return actions, {'node_expansions': 0}
+
+    def _translate_plan(self, plan):
+        new_plan = []
+        numbered_plan = []
+        for obs in plan:
+            new_plan.append(self._env._internal_to_state(obs))
+            numbered_plan.append(self._obs_to_state(obs))
+        # print(numbered_plan)
+        # print(len(new_plan))
+        return new_plan
 
     def value_iteration(self):
         """ performs value iteration and uses state action value to extract greedy policy for gridworld """
@@ -494,24 +519,29 @@ class VI(DPApproach):
         start = time.time()
 
         ## save the value as a dictionary as it will be used repeatedly
-        R = {}
-        def get_R(s, a):
-            if (s, a) not in R:
-                R[(s, a)] = self.R(self._state_to_obs(s), self._actions[a])
-            return R[(s, a)]
-
         T = {}
         def get_T(s, a):
             if (s, a) not in T:
                 T[(s, a)] = self._obs_to_state(self.T(self._state_to_obs(s), self._actions[a]))
             return T[(s, a)]
 
+        R = {}
+        def get_R(s, a):
+            if (s, a) not in R:
+                # R[(s, a)] = self.R(self._state_to_obs(s), self._actions[a])
+                # if self._check_goal(self._state_to_obs(get_T(s, a))):
+                if self._check_goal(self._state_to_obs(s)):
+                    R[(s, a)] = 100
+                else:
+                    R[(s, a)] = 0
+            return R[(s, a)]
+
         # helper function
         def best_action(s):
             V_max = -np.inf
             for a in range(len(self._actions)):
                 s_p = get_T(s, a)
-                V_temp = get_R(s_p, a) + self._gamma * V[s_p]
+                V_temp = get_R(s, a) + self._gamma * V[s_p]
                 V_max = max(V_max, V_temp)
             return V_max
 
@@ -528,8 +558,13 @@ class VI(DPApproach):
                 V[s] = best_action(s)  # helper function used
                 delta = max(delta, abs(v - V[s]))
 
+            if iter == 1:
+                print(f'... finished translating {len(self._states)} states in {round(time.time() - start, 3)} seconds')
+                start = time.time()
+
             # termination condition
-            if delta < 10**-3: break
+            if delta < 10**-2 or time.time()-start > self._timeout: break
+            # else: print('... ', delta)
 
         ## extract greedy policy
         pi = np.zeros((len(self._states), len(self._actions)))
@@ -538,24 +573,28 @@ class VI(DPApproach):
             Q = np.zeros((len(self._actions),))
             for a in range(len(self._actions)):
                 s_p = get_T(s, a)
-                Q[a] = get_R(s_p, a) + self._gamma * V[s_p]
+                Q[a] = get_R(s, a) + self._gamma * V[s_p]
                 Q_sa[s, a] = Q[a]
 
             ## highest state-action value
             Q_max = np.amax(Q)
 
             ## collect all actions that has Q value very close to Q_max
-            # pi[s[0], s[1]//90, :] = softmax((Q * (np.abs(Q - Q_max) < 10**-2) / 0.01).astype(int))
+            # pi[, :] = softmax((Q * (np.abs(Q - Q_max) < 10**-2) / 0.01).astype(int))
             pi[s, :] = np.abs(Q - Q_max) < 10 ** -3
             pi[s, :] /= np.sum(pi[s, :])
 
         print(f'... finished VI on {len(self._states)} states in {round(time.time()-start, 3)} seconds')
         return pi
 
-    def _get_action(self, state):
+    def _get_action(self, obs, t=None):
         if self._rng.rand() < self._epsilon:
-            return self._rng.choice(self._actions)
+            act = self._rng.choice(self._actions)
+            print('------ chosen random action', act)
+            return act
 
         ## ties are broken randomly
-        state = self._obs_to_state(state)
-        return self._actions[np.random.choice(len(self._actions), p=self._pi[state, :])]
+        state = self._obs_to_state(obs)
+        action_chosen = self._actions[np.random.choice(len(self._actions), p=self._pi[state, :])]
+        # print(t, self._obs_to_state(obs), self._pi[state, :])
+        return action_chosen

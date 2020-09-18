@@ -28,7 +28,7 @@ approaches = [
     # "supervised_heuristic",
     # "qlearning_heuristic",
 ]
-levels = list(range(1, 2 + 1))
+levels = list(range(1, 2))
 columns = ["Approach", "Train Time", "Duration", "Num Steps", "Num Nodes", "Successes"]
 
 

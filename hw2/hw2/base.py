@@ -155,7 +155,7 @@ def get_states(env):
     print('getting states')
 
 
-def get_approach(name, env, planning_timeout=10, num_search_iters=5000, gamma=0.999):
+def get_approach(name, env, planning_timeout=10, num_search_iters=5000, gamma=0.99):
     """Put new approaches here!
     """
     if name == "random":
@@ -169,14 +169,14 @@ def get_approach(name, env, planning_timeout=10, num_search_iters=5000, gamma=0.
 
     if name == "uct":
         from .plan import SearchApproach, UCT
-        planner = UCT(env.get_successor_state, env.check_goal, reward_fn=env.extrinsic_reward,
+        planner = UCT(env.get_successor_state, env.check_goal,
                       num_search_iters=num_search_iters, timeout=planning_timeout * 10,
                       replanning_interval=1000, max_num_steps=25, gamma=gamma)
         return SearchApproach(planner=planner)
 
     if name == 'value_iteration':
         from .plan import DPApproach, VI
-        planner = VI(env, env.get_successor_state, env.check_goal, reward_fn=env.extrinsic_reward,
+        planner = VI(env, env.get_successor_state, env.check_goal,
                      max_num_steps=100, gamma=gamma)
         return DPApproach(planner=planner)
 
@@ -204,7 +204,7 @@ def get_approach(name, env, planning_timeout=10, num_search_iters=5000, gamma=0.
     raise Exception(f"Unrecognized approach: {name}")
 
 
-def run_single_test(test_env, problem_idx, model, max_horizon=250, max_duration=100, DEBUG=False):
+def run_single_test(test_env, problem_idx, model, max_horizon=100, max_duration=100, DEBUG=False):
     if DEBUG: print(f"Running test problem {problem_idx} in environment {test_env.spec.id}")
     test_env.fix_problem_index(problem_idx)
     start_time = time.time()
