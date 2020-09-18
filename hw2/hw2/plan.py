@@ -12,8 +12,10 @@ from itertools import count, product
 from tqdm import tqdm
 import abc
 import numpy as np
+import copy
 import heapq as hq
 import time
+from pddlgym.custom.searchandrescue import SearchAndRescueEnv
 
 from .base import Approach
 from .learning import TabularQ
@@ -358,6 +360,7 @@ class DPApproach(Approach):
 
     def set_actions(self, actions):
         self._actions = actions
+        self._planner.set_actions(actions)
 
     def reset(self, obs):
         self._plan, info = self._planner(obs, verbose=False)
@@ -377,15 +380,17 @@ class DPApproach(Approach):
 
 class VI(DPApproach):
 
-    def __init__(self, states, successor_fn, check_goal_fn, reward_fn,
-                 gamma=0.9, epsilon=0.1, timeout=100, seed=0):
+    def __init__(self, env, successor_fn, check_goal_fn, reward_fn,
+                 max_num_steps=100, gamma=0.9, epsilon=0.1, timeout=100, seed=0):
 
+        self._env = SearchAndRescueEnv(env)
         self._states = None
         self._actions = None
         self.T = successor_fn
         self.R = reward_fn
         self._check_goal = check_goal_fn
 
+        self._max_num_steps = max_num_steps
         self._gamma = gamma
         self._epsilon = epsilon  ## epsilon greey method
         self._timeout = timeout
@@ -393,77 +398,152 @@ class VI(DPApproach):
 
         self._rng = np.random.RandomState(seed)
 
-        def _get_state(self, state):
-            """ the state space of VI is different from the state of the environment """
-            print(state)
-            return None #VI_state
+    def set_actions(self, actions):
+        self._actions = actions
 
-        def __call__(self, state, verbose=False):
-            self.value_iteration()
-            plan = [state]
-            for t in tqdm(range(self._max_num_steps)):
-                action = self._get_action(state)
-                state = self.T(state, action)
-                plan.append(state)
-                if self._check_goal(state):
-                    print(f'!!! found goal in {t} steps!')
-                    break
+    def _obs_to_state(self, state):
+        """ from the observation in the environment to the state space of VI """
+        new_state = self._env._internal_to_state(state)
+        if self._level == 1:
+            goal_person = list([y for x,y in new_state if 'rescue' == x][0])[0]
+            rob_loc = [y for x,y in new_state if 'robot' in x][0]
+            person_loc = [y for x,y in new_state if goal_person == x]
+            if len(person_loc) > 0: person_loc = person_loc[0]
+            else: person_loc = rob_loc
+            if_carry = [y for x, y in new_state if 'carrying' == x][0]
+            if if_carry: if_carry = 1
+            else: if_carry = 0
+            return self._states.index((self._available_locations.index(rob_loc),
+                    self._available_locations.index(person_loc),
+                    if_carry))
+        raise NotImplementedError("Didn't implement for this level!")
 
-            return plan, {'node_expansions': 0}
+    def _state_to_obs(self, state):
+        """ from the state space of VI to the observation in the environment """
 
-        def value_iteration(self):
-            """ performs value iteration and uses state action value to extract greedy policy for gridworld """
+        if self._level == 1:
+            goal_person = list([y for x, y in self._fixed_state_items if 'rescue' == x][0])[0]
+            rob_loc, person_loc, if_carry = self._states[state]
+            if if_carry == 1: if_carry = goal_person
+            else: if_carry = None
+            new_state = copy.deepcopy(self._fixed_state_items)
+            new_state.append(('robot0', self._available_locations[rob_loc]))
+            new_state.append((goal_person, self._available_locations[person_loc]))
+            new_state.append(('carrying', if_carry))
+            return self._env._state_to_internal(tuple(new_state))
 
-            start = time.time()
+        raise NotImplementedError("Didn't implement for this level!")
 
-            # helper function
-            def best_action(s):
-                V_max = -np.inf
-                for a in self._actions:
-                    s_p = self.T(self._state_to_obs(self._states[s]), self._actions[a])
-                    V_temp = self.R(self._state_to_obs(self._states[s_p]), self._actions[a]) + gamma * V[s_p[0], s_p[1] // 90]
-                    V_max = max(V_max, V_temp)
-                return V_max
+    def _set_states(self, state):
+        ## the available states include robot-at x person-at x handsfree
+        new_state = self._env._internal_to_state(state)
+        self._available_locations = [(r,c) for r in range(6) for c in range(6)]
+        self._fixed_state_items = [(x,y) for x,y in new_state
+                                   if 'hospital' in x or 'wall' in x or 'rescue' == x]
 
-            ## initialize V to be 0
-            V = np.zeros(len(self._states))
+        ## find the number of possible locations
+        for item, value in new_state:
+            if 'wall' in item:
+                self._available_locations.remove(value)
 
-            ## apply Bellman Equation until converge
-            iter = 0
-            while True:
-                iter += 1
-                delta = 0
-                for s in self._states:
-                    v = V[s]
-                    V[s] = best_action(s)  # helper function used
-                    delta = max(delta, abs(v - V[s]))
+        ## find the level specified by looking at ('rescue', frozenset({'personx'})) and ('personx')
+        num_of_rescues = len(list([y for x,y in new_state if 'rescue' == x][0]))
+        num_of_persons = len(list([y for x,y in new_state if 'person' in x]))
 
-                # termination condition
-                if delta < epsilon: break
+        ## level 1 or level 2
+        if num_of_persons == 1 and num_of_rescues == 1:
+            self._level = 1
+            self._states = tuple([(rob_loc, person_loc, if_carry)
+                                  for rob_loc in range(len(self._available_locations))
+                                  for person_loc in range(len(self._available_locations))
+                                  for if_carry in range(2)
+                                  ])
+            return self._states
 
-            ## extract greedy policy
-            pi = np.zeros((len(self._states), len(self._actions)))
-            Q_sa = np.zeros((len(self._states), len(self._actions)))
+        raise NotImplementedError("Didn't implement for this level!")
+
+    def __call__(self, state, verbose=False):
+        self._set_states(state)
+        self._pi = self.value_iteration()
+        plan = [state]
+        for t in tqdm(range(self._max_num_steps)):
+            action = self._get_action(state)
+            state = self.T(state, action)
+            plan.append(state)
+            if self._check_goal(state):
+                print(f'!!! found goal in {t} steps!')
+                break
+
+        return plan, {'node_expansions': 0}
+
+    def value_iteration(self):
+        """ performs value iteration and uses state action value to extract greedy policy for gridworld """
+
+        start = time.time()
+
+        ## save the value as a dictionary as it will be used repeatedly
+        R = {}
+        def get_R(s, a):
+            if (s, a) not in R:
+                R[(s, a)] = self.R(self._state_to_obs(s), self._actions[a])
+            return R[(s, a)]
+
+        T = {}
+        def get_T(s, a):
+            if (s, a) not in T:
+                T[(s, a)] = self._obs_to_state(self.T(self._state_to_obs(s), self._actions[a]))
+            return T[(s, a)]
+
+        # helper function
+        def best_action(s):
+            V_max = -np.inf
+            for a in range(len(self._actions)):
+                s_p = get_T(s, a)
+                V_temp = get_R(s_p, a) + self._gamma * V[s_p]
+                V_max = max(V_max, V_temp)
+            return V_max
+
+        ## initialize V to be 0
+        V = np.zeros(len(self._states))
+
+        ## apply Bellman Equation until converge
+        iter = 0
+        while True:
+            iter += 1
+            delta = 0
             for s in range(len(self._states)):
-                Q = np.zeros((len(self._actions),))
-                for a in range(len(self._actions)):
-                    s_p = self.T(self._state_to_obs(self._states[s]), self._actions[a])
-                    Q[a] = self.R(self._state_to_obs(self._states[s_p]), self._actions[a]) + gamma * V[s]
-                    Q_sa[s, a] = Q[a]
+                v = V[s]
+                V[s] = best_action(s)  # helper function used
+                delta = max(delta, abs(v - V[s]))
 
-                ## highest state-action value
-                Q_max = np.amax(Q)
+            # termination condition
+            if delta < 10**-3: break
 
-                ## collect all actions that has Q value very close to Q_max
-                # pi[s[0], s[1]//90, :] = softmax((Q * (np.abs(Q - Q_max) < 10**-2) / 0.01).astype(int))
-                pi[s, :] = np.abs(Q - Q_max) < 10 ** -3
-                pi[s, :] /= np.sum(pi[s, :])
+        ## extract greedy policy
+        pi = np.zeros((len(self._states), len(self._actions)))
+        Q_sa = np.zeros((len(self._states), len(self._actions)))
+        for s in range(len(self._states)):
+            Q = np.zeros((len(self._actions),))
+            for a in range(len(self._actions)):
+                s_p = get_T(s, a)
+                Q[a] = get_R(s_p, a) + self._gamma * V[s_p]
+                Q_sa[s, a] = Q[a]
 
-            return pi
+            ## highest state-action value
+            Q_max = np.amax(Q)
 
-        def _get_action(self, state):
-            if self._rng.rand() < epsilon:
-                return self._rng.choice(self._actions)
+            ## collect all actions that has Q value very close to Q_max
+            # pi[s[0], s[1]//90, :] = softmax((Q * (np.abs(Q - Q_max) < 10**-2) / 0.01).astype(int))
+            pi[s, :] = np.abs(Q - Q_max) < 10 ** -3
+            pi[s, :] /= np.sum(pi[s, :])
 
-            ## ties are broken randomly
-            return np.random.choice(len(self._actions), p=self._pi[state, :])
+        print(f'... finished VI on {len(self._states)} states in {round(time.time()-start, 3)} seconds')
+        return pi
+
+    def _get_action(self, state):
+        if self._rng.rand() < self._epsilon:
+            return self._rng.choice(self._actions)
+
+        ## ties are broken randomly
+        state = self._obs_to_state(state)
+        return self._actions[np.random.choice(len(self._actions), p=self._pi[state, :])]

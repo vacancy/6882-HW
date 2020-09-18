@@ -21,9 +21,9 @@ from hw2.base import get_approach, run_single_test, run_single_experiment
 
 approaches = [
     # "random",
-    "astar_uniform",
-    "uct",
-    # "value_iteration",
+    # "astar_uniform",
+    # "uct",
+    "value_iteration",
     # "supervised_policy",
     # "supervised_heuristic",
     # "qlearning_heuristic",

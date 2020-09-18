@@ -174,8 +174,9 @@ def get_approach(name, env, planning_timeout=10, num_search_iters=1000, gamma=0.
 
     if name == 'value_iteration':
         from .plan import DPApproach, VI
-        planner = VI()
-        return DPApproach(solver=planner)
+        planner = VI(env, env.get_successor_state, env.check_goal, reward_fn=env.extrinsic_reward,
+                     max_num_steps=100, gamma=gamma)
+        return DPApproach(planner=planner)
 
     if name == 'supervised_policy':
         from .learning import SupervisedPolicyLearning
