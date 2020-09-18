@@ -130,7 +130,7 @@ class SearchApproach(Approach):
         self._planner.set_actions(actions)
 
     def reset(self, obs):
-        self._plan, info = self._planner(obs, heuristic=self._heuristic, verbose=False)
+        self._plan, info = self._planner(obs, heuristic=self._heuristic)
         return info
 
     def step(self, obs):
@@ -162,7 +162,7 @@ class AStar(Planner):
         self._timeout = timeout
         self._actions = None
 
-    def __call__(self, state, heuristic=None, verbose=True):
+    def __call__(self, state, heuristic=None, verbose=False):
         self._heuristic = heuristic or (lambda node : 0)
         return self._get_plan(state, verbose=verbose)
 
@@ -171,7 +171,7 @@ class AStar(Planner):
         if isinstance(self._heuristic, Heuristic):
             self._heuristic.set_actions(actions)
 
-    def _get_plan(self, state, verbose=True):
+    def _get_plan(self, state, verbose=False):
         start_time = time.time()
         queue = []
         state_to_best_g = defaultdict(lambda : float("inf"))
@@ -240,6 +240,7 @@ class BestFirstSearch(AStar):
 
 class UCT(Planner):
     """Implementation of UCT based on Leslie's lecture notes
+
     """
     def __init__(self, successor_fn, check_goal_fn, reward_fn,
                  num_search_iters=100, timeout=100,
@@ -269,14 +270,19 @@ class UCT(Planner):
                 self.run(state, horizon=self._max_num_steps - t)
                 steps_since_replanning = 0
                 if verbose: print("Done.")
+
+            # print(f'generating action at step: {t}')
+            # values = {a: self._Q[state][a][t] for a in self._actions}
+            # print(sorted(values.items(), key=lambda x: -x[1]))
+
             action = self._get_action(state, t=steps_since_replanning)
             steps_since_replanning += 1
-            if verbose: print("Taking action", action)
+            # if verbose: print("Taking action", action)
             state = self._get_successor_state(state, action)
-            if verbose: print("Next state:", state)
-            plan.append(state)
+            # if verbose: print("Next state:", state)
+            plan.append(action)
             if self._check_goal(state):
-                print("!! UCT found goal", action)
+                if verbose: print("!! UCT found goal", action)
                 break
 
         return plan, {'node_expansions': 0}
@@ -288,7 +294,7 @@ class UCT(Planner):
         self._N = defaultdict(lambda : defaultdict(lambda : defaultdict(int)))
         # Loop search
         start_time = time.time()
-        for it in range(self._num_search_iters):
+        for it in tqdm(range(self._num_search_iters), desc='UCT Search'):
             if time.time() - start_time > self._timeout:
                 print(f'.... stopped UCT after {it} iterations (timeout = {self._timeout})')
                 break
@@ -302,22 +308,29 @@ class UCT(Planner):
         # Return best action, break ties randomly
         return max(self._actions, key=lambda a : (self._Q[state][a][t], self._rng.uniform()))
 
-    def _search(self, s, depth, horizon=100):
+    def _search(self, s, depth, horizon):
         # Base case
         if depth == horizon:
             return 0.
+
         # Select an action, balancing explore/exploit
         a = self._select_action(s, depth, horizon=horizon)
         # Create a child state
         next_state = self._get_successor_state(s, a)
+
         # Get value estimate
         if self._check_goal(next_state):
             # Some environments terminate problems before the horizon
-            q = self._reward_fn(s, a)
+            reward = self._reward_fn(s, a)
+            reward = 100
+            q = reward
         else:
-            q = self._reward_fn(s, a) + self._gamma * self._search(next_state, depth+1, horizon=horizon)
+            reward = self._reward_fn(s, a)
+            reward = 0
+            q = reward + self._gamma * self._search(next_state, depth+1, horizon=horizon)
         # Update values and counts
         num_visits = self._N[s][a][depth] # before now
+
         # First visit to (s, a, depth)
         if num_visits == 0:
             self._Q[s][a][depth] = q
@@ -351,8 +364,8 @@ class UCT(Planner):
                 best_actions.append(a)
         return self._rng.choice(best_actions)
 
-class DPApproach(Approach):
 
+class DPApproach(Approach):
     def __init__(self, planner):
         self._planner = planner
         self._actions = None
@@ -363,7 +376,7 @@ class DPApproach(Approach):
         self._planner.set_actions(actions)
 
     def reset(self, obs):
-        self._plan, info = self._planner(obs, verbose=False)
+        self._plan, info = self._planner(obs)
         return info
 
     def step(self, obs):
@@ -379,9 +392,8 @@ class DPApproach(Approach):
         pass
 
 class VI(DPApproach):
-
     def __init__(self, env, successor_fn, check_goal_fn, reward_fn,
-                 max_num_steps=100, gamma=0.9, epsilon=0.1, timeout=100, seed=0):
+                 max_num_steps=150, gamma=0.9, epsilon=0.1, timeout=100, seed=0):
 
         self._env = SearchAndRescueEnv(env)
         self._states = None

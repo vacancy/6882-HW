@@ -150,10 +150,12 @@ class Heuristic:
         """
         raise NotImplementedError("Override me!")
 
+
 def get_states(env):
     print('getting states')
 
-def get_approach(name, env, planning_timeout=10, num_search_iters=1000, gamma=0.999):
+
+def get_approach(name, env, planning_timeout=10, num_search_iters=5000, gamma=0.999):
     """Put new approaches here!
     """
     if name == "random":
@@ -168,8 +170,8 @@ def get_approach(name, env, planning_timeout=10, num_search_iters=1000, gamma=0.
     if name == "uct":
         from .plan import SearchApproach, UCT
         planner = UCT(env.get_successor_state, env.check_goal, reward_fn=env.extrinsic_reward,
-                      num_search_iters=num_search_iters, timeout=planning_timeout/10,
-                      replanning_interval=1, max_num_steps=100, gamma=gamma)
+                      num_search_iters=num_search_iters, timeout=planning_timeout * 10,
+                      replanning_interval=1000, max_num_steps=25, gamma=gamma)
         return SearchApproach(planner=planner)
 
     if name == 'value_iteration':
@@ -202,7 +204,7 @@ def get_approach(name, env, planning_timeout=10, num_search_iters=1000, gamma=0.
     raise Exception(f"Unrecognized approach: {name}")
 
 
-def run_single_test(test_env, problem_idx, model, max_horizon=250, max_duration=10, DEBUG=False):
+def run_single_test(test_env, problem_idx, model, max_horizon=250, max_duration=100, DEBUG=False):
     if DEBUG: print(f"Running test problem {problem_idx} in environment {test_env.spec.id}")
     test_env.fix_problem_index(problem_idx)
     start_time = time.time()
@@ -236,6 +238,7 @@ def run_single_test(test_env, problem_idx, model, max_horizon=250, max_duration=
     duration = time.time() - start_time
     if DEBUG: print(f" final duration: {duration} with num steps {num_steps} and success={success}.")
     return duration, num_steps, node_expansions, success, states, actions
+
 
 def run_single_experiment(model, train_env, test_env, seed=0, num_problems=100):
     # Initialize
