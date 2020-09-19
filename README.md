@@ -5,7 +5,7 @@
 - hw1: [code](https://github.com/vacancy/6882-HW/tree/master/hw1/jiayuan.ipynb)
 - hw2: [code](https://github.com/vacancy/6882-HW/tree/master/hw2/run.py) and [solution](https://github.com/vacancy/6882-HW/tree/master/hw2)
 
-## Main text: Tomas' Jokes
+## Main Text: Tomas' Jokes
 
 ### Week 2
 
