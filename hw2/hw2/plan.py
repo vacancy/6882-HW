@@ -136,7 +136,7 @@ class SearchApproach(Approach):
 
     def step(self, obs):
         if not self._plan:
-            print("Warning: step was called without a plan. Defaulting to random action.")
+            # print("Warning: step was called without a plan. Defaulting to random action.")
             return self._rng.choice(self._actions)
         return self._plan.pop(0)
 
@@ -245,7 +245,7 @@ class UCT(Planner):
     """
     def __init__(self, successor_fn, check_goal_fn,
                  num_search_iters=100, timeout=100,
-                 replanning_interval=5, max_num_steps=250, gamma=0.9, seed=0):
+                 replanning_interval=1, max_num_steps=250, gamma=0.9, seed=0):
 
         self._get_successor_state = successor_fn
         self._check_goal = check_goal_fn
@@ -262,9 +262,10 @@ class UCT(Planner):
         self._N = None
 
     def __call__(self, state, heuristic=None, verbose=False):
+        start_time = time.time()
         steps_since_replanning = 0
         plan = []
-        for t in tqdm(range(self._max_num_steps)):
+        for t in range(self._max_num_steps): #tqdm():
             if t % self._replanning_interval == 0:
                 if verbose: print("Running UCT...")
                 self.run(state, horizon=self._max_num_steps - t)
@@ -282,7 +283,10 @@ class UCT(Planner):
             # if verbose: print("Next state:", state)
             plan.append(action)
             if self._check_goal(state):
-                if verbose: print("!! UCT found goal", action)
+                print("... UCT found goal at depth", t)
+                break
+            if time.time() - start_time > self._timeout:
+                print(f'.... stopped UCT (timeout = {self._timeout})')
                 break
 
         return plan, {'node_expansions': 0}
@@ -294,7 +298,7 @@ class UCT(Planner):
         self._N = defaultdict(lambda : defaultdict(lambda : defaultdict(int)))
         # Loop search
         start_time = time.time()
-        for it in tqdm(range(self._num_search_iters), desc='UCT Search'):
+        for it in range(self._num_search_iters) : #tqdm(range(self._num_search_iters), desc='UCT search iterations'):
             if time.time() - start_time > self._timeout:
                 print(f'.... stopped UCT after {it} iterations (timeout = {self._timeout})')
                 break
@@ -321,13 +325,16 @@ class UCT(Planner):
         # Get value estimate
         if self._check_goal(next_state):
             # Some environments terminate problems before the horizon
-            # reward = self._reward_fn(s, a)
+            # print('.... found reward at depth', depth)
             reward = 100
             q = reward
+            # cost = 0
+            # q = cost
         else:
-            # reward = self._reward_fn(s, a)
             reward = 0
             q = reward + self._gamma * self._search(next_state, depth+1, horizon=horizon)
+            # cost = 1
+            # q = cost + self._gamma * self._search(next_state, depth+1, horizon=horizon)
         # Update values and counts
         num_visits = self._N[s][a][depth] # before now
 
@@ -364,6 +371,210 @@ class UCT(Planner):
                 best_actions.append(a)
         return self._rng.choice(best_actions)
 
+
+class RTDP(Planner):
+    """Implementation of RTDP based on Blai and Hector's 2003 paper
+        Labeled RTDP: Improving the Convergence of Real-Time Dynamic Programming
+    """
+    def __init__(self, successor_fn, check_goal_fn, num_simulations=100,
+                 epsilon = 0.01, timeout=100, max_num_steps=250, seed=0):
+
+        self._get_successor_state = successor_fn
+        self._check_goal = check_goal_fn
+
+        self._num_simulations = num_simulations
+        self._epsilon = epsilon
+        self._max_num_steps = max_num_steps
+        self._timeout = timeout
+        self._rng = np.random.RandomState(seed)
+        self._actions = None
+        self._V = {}
+        self._h = None
+
+    def __call__(self, state, heuristic=None, verbose=False):
+        self._h = heuristic
+        plan, state_space_size = self.RTDP_trials(state)
+        return plan, {'node_expansions': state_space_size}
+
+    def set_actions(self, actions):
+        self._actions = actions
+
+    def _get_h(self, state):
+        if self._h != None:
+            return self._h(state)
+        # if self._check_goal(state):
+        #     return 1
+        return 0
+
+    def _get_V(self, state):
+        if state not in self._V:
+            self._V[state] = self._get_h(state)
+        return self._V[state]
+
+    def _get_Q(self, state, a):
+        cost = 1
+        if self._check_goal(state): cost = 0
+        return cost + self._get_V(self._get_successor_state(state, a))
+
+    def _update_q(self, state, action):
+        # print('... updating ...', self._V[state], self._get_Q(state, action))
+        self._V[state] = self._get_Q(state, action)
+
+    def _get_greedy_action(self, state):
+        return min(self._actions, key=lambda a : (self._get_Q(state, a), self._rng.uniform()))
+
+    def RTDP_trials(self, initial_state):
+        ## update Values through simulations
+        start_time = time.time()
+        found_goal = 1000
+        actions = []
+        for i in tqdm(range(self._num_simulations), desc='RTDP simulations'):
+            last_V = copy.deepcopy(self._V)
+            state = initial_state
+            for t in range(self._max_num_steps):
+                action = self._get_greedy_action(state)
+                actions.append(action)
+                self._update_q(state, action)
+                state = self._get_successor_state(state, action)
+                # print(len(self._V), max(self._V.values()), sum(self._V.values())/len(self._V))
+                if self._check_goal(state):
+                    if t != found_goal:
+                        found_goal = t
+                        print(f'.... found goal in {i}-th simulation after {t} steps') # actions
+                    break
+                if time.time() - start_time > self._timeout:
+                    print(f'.... stopped RTDP after {t} iterations (timeout = {self._timeout})')
+                    break
+            converged = len(last_V) == len(self._V)
+            for s in last_V:
+                if abs(self._get_V(s) - last_V[s]) > self._epsilon:
+                    # if max(self._V.values()) == 1: print('____',self._get_V(s), last_V[s])
+                    converged = False
+            if converged:
+                # print(f'.... RTDP converged after {i} simulations')
+                break
+            actions = []
+
+        ## sequence of greedy actions extracted from converged V
+        return actions, len(self._V)
+
+    def _get_residual(self, state):
+        # print(self._get_V(state), self._get_Q(state, self._get_greedy_action(state)))
+        action = self._get_greedy_action(state)
+        return abs(self._get_V(state) - self._get_Q(state, action))
+
+class LRTDP(Planner):
+    """Implementation of LRTDP based on Blai and Hector's 2003 paper
+        Labeled RTDP: Improving the Convergence of Real-Time Dynamic Programming
+    """
+    def __init__(self, successor_fn, check_goal_fn, num_simulations=100,
+                 epsilon = 0.01, timeout=100, max_num_steps=250, seed=0):
+
+        super().__init__()
+        self.wrapped = RTDP(successor_fn, check_goal_fn, num_simulations,
+                 epsilon, timeout, max_num_steps, seed)
+        self._solved = {}
+        self._timeout = timeout
+
+    def __call__(self, state, heuristic=None, verbose=False):
+        self.wrapped._h = heuristic
+        _, state_space_size = self.LRTDP_trials(state)
+        plan, _ = self.wrapped.RTDP_trials(state)
+        return plan, {'node_expansions': state_space_size}
+
+    def set_actions(self, actions):
+        self._actions = actions
+        self.wrapped._actions = actions
+
+    def _get_solved(self, state):
+        if state not in self._solved:
+            self._solved[state] = False
+        return self._solved[state]
+
+    def _get_residual(self, state):
+        return self.wrapped._get_residual(state)
+
+    def _percentage_solved(self):
+        count = 0
+        for s in self._solved:
+            if self._solved[s]:
+                count += 1
+        print(f'... {round(count/len(self._solved), 3)} out of {len(self._solved)} states are solved')
+
+    def _check_solved(self, state):
+        rv = True
+        open = []
+        closed = []
+        if not self._get_solved(state):
+            open.append(state)
+
+        while len(open) > 0:
+            s = open[len(open)-1]
+            open.remove(s)
+            closed.append(s)
+
+            ## check residual
+            residual = self._get_residual(s)
+            if residual > self.wrapped._epsilon:
+                # print(len(open), len(closed), list(self._solved.keys()).index(s), residual, self.wrapped._epsilon)
+                rv = False
+                continue
+
+            ## expand state
+            action = self.wrapped._get_greedy_action(s)
+            next = self.wrapped._get_successor_state(s, action)
+            # self._percentage_solved()
+            if (not self._get_solved(next)) and (next not in open and next not in closed):
+                open.append(next)
+
+        if rv:
+            ## label relevant states
+            for s in closed:
+                self._solved[s] = True
+        else:
+            ## update states with residuals and ancestors
+            while len(closed) > 0:
+                s = closed[len(closed) - 1]
+                closed.remove(s)
+                action = self.wrapped._get_greedy_action(s)
+                self.wrapped._update_q(s, action)
+        return rv
+
+    def LRTDP_trials(self, initial_state):
+        start_time = time.time()
+        found_goal = 1000
+        actions = []
+        self._check_solved(initial_state)
+
+        while not self._get_solved(initial_state):
+            state = initial_state
+            visited = []
+            while not self._get_solved(state):
+                visited.append(state)
+                if self.wrapped._check_goal(state):
+                    if len(actions) != found_goal:
+                        found_goal = len(actions)
+                        # print(f'.... found goal after {len(actions)} expansions')
+                    break
+                action = self.wrapped._get_greedy_action(state)
+                actions.append(action)
+                self.wrapped._update_q(state, action)
+                state = self.wrapped._get_successor_state(state, action)
+
+            ## try labeling visited states in reverse order
+            while len(visited) > 0:
+                s = visited[len(visited)-1]
+                visited.remove(s)
+                if not self._check_solved(s):
+                    break
+
+            if time.time() - start_time > self._timeout:
+                print(f'.... stopped LRTDP (timeout = {self._timeout})')
+                break
+            actions = []
+
+        # self._percentage_solved()
+        return actions, len(self.wrapped._V)
 
 class DPApproach(Approach):
     def __init__(self, planner):
@@ -482,13 +693,13 @@ class VI(DPApproach):
 
         self._set_states(state)
         self._pi = self.value_iteration()
-        actions = []
-        plan = [state]
+        plan = []
+        states = [state]
         for t in tqdm(range(self._max_num_steps)):
             action = self._get_action(state, t)
-            actions.append(action)
+            plan.append(action)
             state = self.T(state, action)
-            plan.append(state)
+            states.append(state)
             # if self._obs_to_state(state) in [1798, 1799]:
                 # print(self._env._internal_to_state(state))
                 # print(self._check_goal(state), state)
@@ -499,9 +710,9 @@ class VI(DPApproach):
                 print(f'!!! found goal in {t+1} steps!')
                 break
 
-        draw_trace(self._translate_plan(plan))
+        draw_trace(self._translate_plan(states))
         plt.savefig('test.png')
-        return actions, {'node_expansions': 0}
+        return plan, {'node_expansions': len(self._states)}
 
     def _translate_plan(self, plan):
         new_plan = []

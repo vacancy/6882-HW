@@ -155,7 +155,7 @@ def get_states(env):
     print('getting states')
 
 
-def get_approach(name, env, planning_timeout=10, num_search_iters=5000, gamma=0.99):
+def get_approach(name, env, planning_timeout=10, gamma=0.9, epsilon=0.01, num_search_iters=100, max_num_steps=40):
     """Put new approaches here!
     """
     if name == "random":
@@ -169,9 +169,20 @@ def get_approach(name, env, planning_timeout=10, num_search_iters=5000, gamma=0.
 
     if name == "uct":
         from .plan import SearchApproach, UCT
-        planner = UCT(env.get_successor_state, env.check_goal,
-                      num_search_iters=num_search_iters, timeout=planning_timeout * 10,
-                      replanning_interval=1000, max_num_steps=25, gamma=gamma)
+        planner = UCT(env.get_successor_state, env.check_goal, num_search_iters=num_search_iters,
+                      timeout=planning_timeout, replanning_interval=5, max_num_steps=max_num_steps, gamma=gamma)
+        return SearchApproach(planner=planner)
+
+    if name == "rtdp":
+        from .plan import SearchApproach, RTDP
+        planner = RTDP(env.get_successor_state, env.check_goal, num_simulations=num_search_iters, epsilon=epsilon,
+                      timeout=planning_timeout, max_num_steps=max_num_steps)
+        return SearchApproach(planner=planner)
+
+    if name == "lrtdp":
+        from .plan import SearchApproach, LRTDP
+        planner = LRTDP(env.get_successor_state, env.check_goal, num_simulations=num_search_iters, epsilon=epsilon,
+                      timeout=planning_timeout, max_num_steps=max_num_steps)
         return SearchApproach(planner=planner)
 
     if name == 'value_iteration':
@@ -260,7 +271,8 @@ def run_single_experiment(model, train_env, test_env, seed=0, num_problems=100):
     test_successes = [] # boolean, True if successful
 
     num_problems = min(len(test_env.problems), num_problems)
-    for problem_idx in tqdm(range(num_problems)):
+    for problem_idx in range(num_problems): #tqdm():
+        print('         Experimenting with Problem:', problem_idx)
         duration, num_steps, node_expansions, success, _, _ = \
             run_single_test(test_env, problem_idx, model)
         test_durations.append(duration)
