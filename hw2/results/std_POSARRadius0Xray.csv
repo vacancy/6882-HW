@@ -1,0 +1,20 @@
+"Approach","Train Time","Duration","Num Steps","Num Nodes","Successes"
+"pouct","0.0","7.239590045141642","39.98984246030484","0.0","0.4330127018922193"
+
+"Approach","Train Time","Duration","Num Steps","Num Nodes","Successes"
+"pouct","0.0","8.891848565483748","33.26691299174001","0.0","0.5"
+
+"Approach","Train Time","Duration","Num Steps","Num Nodes","Successes"
+"po-lrtdp","0.0","35.26462484681293","7.495832175282475","0.0","0.4330127018922193"
+
+"Approach","Train Time","Duration","Num Steps","Num Nodes","Successes"
+"po-rtdp","0.0","0.3990937816219536","5.477225575051661","0.0","0.0"
+
+"Approach","Train Time","Duration","Num Steps","Num Nodes","Successes"
+"dfaos","0.0","0.0018016990289903845","5.931905258852336","0.0","0.0"
+"idaos","0.0","0.07572775458368147","0.82915619758885","0.0","0.0"
+
+"Approach","Train Time","Duration","Num Steps","Num Nodes","Successes"
+"po-lrtdp","0.0","2.320843744378274","4.5","0.0","0.0"
+"po-rtdp","0.0","0.41360898596997053","6.4031242374328485","0.0","0.0"
+

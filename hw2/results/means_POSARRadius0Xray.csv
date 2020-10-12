@@ -1,0 +1,6 @@
+Approach,Train Time,Duration,Num Steps,Num Nodes,Successes
+dfaos,1.91E-06,0.030299783,36.75,0,1
+idaos,0,1.971138239,14.25,0,1
+po-lrtdp,7.15E-07,1.922677994,12.5,0,1
+po-rtdp,9.54E-07,0.473973811,14,0,1
+pouct,9.54E-07,12.62546641,66.75,0,0.5

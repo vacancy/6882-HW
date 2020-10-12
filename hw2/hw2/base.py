@@ -167,23 +167,53 @@ def get_approach(name, env, planning_timeout=10, gamma=0.9, epsilon=0.01, num_se
         planner = AStar(env.get_successor_state, env.check_goal, timeout=planning_timeout)
         return SearchApproach(planner=planner)
 
-    if name == "uct":
+    if "pouct" in name:
+        from .PO_plan import POUCT
+        return POUCT(env.get_possible_actions(), env.get_successor_state,
+                     env.check_goal, env.get_observation, env.observation_to_states)
+
+    elif "uct" in name:
         from .plan import SearchApproach, UCT
-        planner = UCT(env.get_successor_state, env.check_goal, num_search_iters=num_search_iters,
-                      timeout=planning_timeout, replanning_interval=5, max_num_steps=max_num_steps, gamma=gamma)
+        replanning_interval = 5
+        if int(name[3]) <= 3:
+            gamma = [0.9, 0.95, 0.99][int(name[3])-1]
+        else:
+            replanning_interval = [10, 15, 20][int(name[3])-4]
+        planner = UCT(env.get_successor_state, env.check_goal, num_search_iters=num_search_iters, timeout=planning_timeout,
+                      replanning_interval=replanning_interval, max_num_steps=max_num_steps, gamma=gamma)
         return SearchApproach(planner=planner)
 
-    if name == "rtdp":
+    if "po-lrtdp" in name:
+        from .PO_plan import POLRTDP
+        return POLRTDP(env.get_possible_actions(), env.get_successor_state,
+                     env.check_goal, env.get_observation, env.observation_to_states)
+
+    elif "po-rtdp" in name:
+        from .PO_plan import PORTDP
+        return PORTDP(env.get_possible_actions(), env.get_successor_state,
+                     env.check_goal, env.get_observation, env.observation_to_states)
+
+    elif "lrtdp" in name:
+        from .plan import SearchApproach, LRTDP
+        planner = LRTDP(env.get_successor_state, env.check_goal, num_simulations=num_search_iters, epsilon=epsilon,
+                      timeout=planning_timeout, max_num_steps=max_num_steps)
+        return SearchApproach(planner=planner)
+
+    elif "rtdp" in name:
         from .plan import SearchApproach, RTDP
         planner = RTDP(env.get_successor_state, env.check_goal, num_simulations=num_search_iters, epsilon=epsilon,
                       timeout=planning_timeout, max_num_steps=max_num_steps)
         return SearchApproach(planner=planner)
 
-    if name == "lrtdp":
-        from .plan import SearchApproach, LRTDP
-        planner = LRTDP(env.get_successor_state, env.check_goal, num_simulations=num_search_iters, epsilon=epsilon,
-                      timeout=planning_timeout, max_num_steps=max_num_steps)
-        return SearchApproach(planner=planner)
+    if name == "dfaos":
+        from .PO_plan import AndOrSearch
+        return AndOrSearch(env.get_possible_actions(), env.get_successor_state,
+                           env.check_goal, env.get_observation, env.observation_to_states)
+
+    if name == "idaos":
+        from .PO_plan import IterativeDeepeningAndOrSearch
+        return IterativeDeepeningAndOrSearch(env.get_possible_actions(), env.get_successor_state,
+                                             env.check_goal, env.get_observation, env.observation_to_states)
 
     if name == 'value_iteration':
         from .plan import DPApproach, VI
@@ -216,7 +246,7 @@ def get_approach(name, env, planning_timeout=10, gamma=0.9, epsilon=0.01, num_se
 
 
 def run_single_test(test_env, problem_idx, model, max_horizon=100, max_duration=100, DEBUG=False):
-    if DEBUG: print(f"Running test problem {problem_idx} in environment {test_env.spec.id}")
+    # if DEBUG: print(f"Running test problem {problem_idx} in environment {test_env.spec.id}")
     test_env.fix_problem_index(problem_idx)
     start_time = time.time()
     obs, info = test_env.reset()
@@ -236,7 +266,7 @@ def run_single_test(test_env, problem_idx, model, max_horizon=100, max_duration=
 
         num_steps += 1
         if done:
-            assert reward == 1
+            # assert reward == 1
             success = True
             break
         else:
@@ -245,6 +275,7 @@ def run_single_test(test_env, problem_idx, model, max_horizon=100, max_duration=
             states.append(obs)
 
     actions.append(last_action)
+    if node_expansions == 0: node_expansions = reward
 
     duration = time.time() - start_time
     if DEBUG: print(f" final duration: {duration} with num steps {num_steps} and success={success}.")
@@ -271,8 +302,8 @@ def run_single_experiment(model, train_env, test_env, seed=0, num_problems=100):
     test_successes = [] # boolean, True if successful
 
     num_problems = min(len(test_env.problems), num_problems)
-    for problem_idx in range(num_problems): #tqdm():
-        print('         Experimenting with Problem:', problem_idx)
+    for problem_idx in tqdm(range(num_problems)): ## range(num_problems): #
+        # print('         Experimenting with Problem:', problem_idx)
         duration, num_steps, node_expansions, success, _, _ = \
             run_single_test(test_env, problem_idx, model)
         test_durations.append(duration)

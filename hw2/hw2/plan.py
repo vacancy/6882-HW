@@ -268,7 +268,7 @@ class UCT(Planner):
         for t in range(self._max_num_steps): #tqdm():
             if t % self._replanning_interval == 0:
                 if verbose: print("Running UCT...")
-                self.run(state, horizon=self._max_num_steps - t)
+                self.run(state, horizon=self._max_num_steps - t, verbose=verbose)
                 steps_since_replanning = 0
                 if verbose: print("Done.")
 
@@ -283,15 +283,15 @@ class UCT(Planner):
             # if verbose: print("Next state:", state)
             plan.append(action)
             if self._check_goal(state):
-                print("... UCT found goal at depth", t)
+                if verbose: print("... UCT found goal at depth", t)
                 break
             if time.time() - start_time > self._timeout:
-                print(f'.... stopped UCT (timeout = {self._timeout})')
+                if verbose: print(f'.... stopped UCT (timeout = {self._timeout})')
                 break
 
-        return plan, {'node_expansions': 0}
+        return plan, {'node_expansions': len(self._Q)}
 
-    def run(self, state, horizon=100):
+    def run(self, state, horizon=100, verbose=False):
         # Initialize Q[s][a][d] -> float
         self._Q = defaultdict(lambda : defaultdict(lambda : defaultdict(float)))
         # Initialize N[s][a][d] -> int
@@ -371,13 +371,15 @@ class UCT(Planner):
                 best_actions.append(a)
         return self._rng.choice(best_actions)
 
+    def seed(self, seed):
+        self._rng = np.random.RandomState(seed)
 
 class RTDP(Planner):
     """Implementation of RTDP based on Blai and Hector's 2003 paper
         Labeled RTDP: Improving the Convergence of Real-Time Dynamic Programming
     """
     def __init__(self, successor_fn, check_goal_fn, num_simulations=100,
-                 epsilon = 0.01, timeout=100, max_num_steps=250, seed=0):
+                 epsilon = 0.01, timeout=10, max_num_steps=250, seed=0):
 
         self._get_successor_state = successor_fn
         self._check_goal = check_goal_fn
@@ -423,12 +425,12 @@ class RTDP(Planner):
     def _get_greedy_action(self, state):
         return min(self._actions, key=lambda a : (self._get_Q(state, a), self._rng.uniform()))
 
-    def RTDP_trials(self, initial_state):
+    def RTDP_trials(self, initial_state, verbose=False):
         ## update Values through simulations
         start_time = time.time()
         found_goal = 1000
         actions = []
-        for i in tqdm(range(self._num_simulations), desc='RTDP simulations'):
+        for i in range(self._num_simulations): ## tqdm(range(self._num_simulations), desc='RTDP simulations'):
             last_V = copy.deepcopy(self._V)
             state = initial_state
             for t in range(self._max_num_steps):
@@ -440,11 +442,13 @@ class RTDP(Planner):
                 if self._check_goal(state):
                     if t != found_goal:
                         found_goal = t
-                        print(f'.... found goal in {i}-th simulation after {t} steps') # actions
+                        if verbose: print(f'.... found goal in {i}-th simulation after {t} steps') # actions
                     break
                 if time.time() - start_time > self._timeout:
-                    print(f'.... stopped RTDP after {t} iterations (timeout = {self._timeout})')
+                    if verbose: print(f'.... stopped RTDP after {t} iterations (timeout = {self._timeout})')
                     break
+            if time.time() - start_time > self._timeout:
+                break
             converged = len(last_V) == len(self._V)
             for s in last_V:
                 if abs(self._get_V(s) - last_V[s]) > self._epsilon:
@@ -468,13 +472,13 @@ class LRTDP(Planner):
         Labeled RTDP: Improving the Convergence of Real-Time Dynamic Programming
     """
     def __init__(self, successor_fn, check_goal_fn, num_simulations=100,
-                 epsilon = 0.01, timeout=100, max_num_steps=250, seed=0):
+                 epsilon = 0.01, timeout=10, max_num_steps=250, seed=0):
 
         super().__init__()
         self.wrapped = RTDP(successor_fn, check_goal_fn, num_simulations,
-                 epsilon, timeout, max_num_steps, seed)
+                 epsilon, timeout/2, max_num_steps, seed)
         self._solved = {}
-        self._timeout = timeout
+        self._timeout = timeout/2
 
     def __call__(self, state, heuristic=None, verbose=False):
         self.wrapped._h = heuristic
@@ -540,7 +544,7 @@ class LRTDP(Planner):
                 self.wrapped._update_q(s, action)
         return rv
 
-    def LRTDP_trials(self, initial_state):
+    def LRTDP_trials(self, initial_state, verbose=False):
         start_time = time.time()
         found_goal = 1000
         actions = []
@@ -561,6 +565,14 @@ class LRTDP(Planner):
                 self.wrapped._update_q(state, action)
                 state = self.wrapped._get_successor_state(state, action)
 
+                if time.time() - start_time > self._timeout:
+                    if verbose: print(f'.... stopped LRTDP (timeout = {self._timeout})')
+                    break
+
+            if time.time() - start_time > self._timeout:
+                if verbose: print(f'.... stopped LRTDP (timeout = {self._timeout})')
+                break
+
             ## try labeling visited states in reverse order
             while len(visited) > 0:
                 s = visited[len(visited)-1]
@@ -568,9 +580,6 @@ class LRTDP(Planner):
                 if not self._check_solved(s):
                     break
 
-            if time.time() - start_time > self._timeout:
-                print(f'.... stopped LRTDP (timeout = {self._timeout})')
-                break
             actions = []
 
         # self._percentage_solved()
